@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Generator Cost Calculator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #f9f9f9;
+      --text: #333;
+      --table-bg: #eee;
+    }
+    body.dark {
+      --bg: #1e1e1e;
+      --text: #f0f0f0;
+      --table-bg: #333;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 20px;
+      transition: background 0.3s, color 0.3s;
+    }
+    h1 {
+      text-align: center;
+    }
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .inputs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .inputs label {
+      display: flex;
+      flex-direction: column;
+      font-weight: bold;
+    }
+    input[type="number"] {
+      width: 80px;
+    }
+    button {
+      margin: 5px;
+      padding: 6px 12px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: var(--table-bg);
+    }
+    canvas {
+      margin-top: 40px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Generator Cost Calculator</h1>
+
+  <div class="controls">
+    <div>
+      <button onclick="toggleTheme()">Toggle Theme</button>
+      <button onclick="savePreset()">💾 Save Preset</button>
+      <button onclick="loadPreset()">📂 Load Preset</button>
+      <button onclick="exportCSV()">📤 Export CSV</button>
+    </div>
+  </div>
+
+  <div class="inputs">
+    <label>Diesel Price (AUD/L)
+      <input type="number" id="dieselPrice" value="1.844" step="0.001" />
+    </label>
+    <label>Tank Size (L)
+      <input type="number" id="tankSize" value="125" />
+    </label>
+    <label>Runtime per Tank (hrs)
+      <input type="number" id="runtime" value="20" />
+    </label>
+    <label>Generator Output (kVA)
+      <input type="number" id="kva" value="18" />
+    </label>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Month</th>
+        <th>Outage Hours</th>
+        <th>Diesel Used (L)</th>
+        <th>Cost (AUD)</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+    <tfoot>
+      <tr>
+        <th>Total</th>
+        <th id="totalHours">0</th>
+        <th id="totalDiesel">0</th>
+        <th id="totalCost">0</th>
+      </tr>
+    </tfoot>
+  </table>
+
+  <canvas id="costChart" height="100"></canvas>
+
+  <script>
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const tableBody = document.getElementById("tableBody");
+
+    months.forEach((month, i) => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${month}</td>
+        <td><input type="number" class="hours" value="0" /></td>
+        <td class="dieselUsed">0</td>
+        <td class="cost">0</td>
+      `;
+      tableBody.appendChild(row);
+    });
+
+    const update = () => {
+      const dieselPrice = parseFloat(document.getElementById("dieselPrice").value);
+      const tankSize = parseFloat(document.getElementById("tankSize").value);
+      const runtime = parseFloat(document.getElementById("runtime").value);
+
+      let totalHours = 0, totalDiesel = 0, totalCost = 0;
+      const hoursInputs = document.querySelectorAll(".hours");
+      const dieselCells = document.querySelectorAll(".dieselUsed");
+      const costCells = document.querySelectorAll(".cost");
+
+      const chartHours = [];
+      const chartCosts = [];
+
+      hoursInputs.forEach((input, i) => {
+        const hours = parseFloat(input.value) || 0;
+        const dieselUsed = (hours / runtime) * tankSize;
+        const cost = dieselUsed * dieselPrice;
+
+        dieselCells[i].textContent = dieselUsed.toFixed(2);
+        costCells[i].textContent = cost.toFixed(2);
+
+        totalHours += hours;
+        totalDiesel += dieselUsed;
+        totalCost += cost;
+
+        chartHours.push(hours);
+        chartCosts.push(cost);
+      });
+
+      document.getElementById("totalHours").textContent = totalHours.toFixed(1);
+      document.getElementById("totalDiesel").textContent = totalDiesel.toFixed(1);
+      document.getElementById("totalCost").textContent = totalCost.toFixed(2);
+
+      updateChart(chartHours, chartCosts);
+    };
+
+    document.querySelectorAll("input").forEach(input => {
+      input.addEventListener("input", update);
+    });
+
+    let chart;
+    const ctx = document.getElementById("costChart").getContext("2d");
+
+    function updateChart(hours, costs) {
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: months,
+          datasets: [
+            {
+              label: "Outage Hours",
+              data: hours,
+              backgroundColor: "rgba(54, 162, 235, 0.6)"
+            },
+            {
+              label: "Cost (AUD)",
+              data: costs,
+              backgroundColor: "rgba(255, 159, 64, 0.6)"
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle("dark");
+      localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
+    }
+
+    function savePreset() {
+      const preset = {
+        dieselPrice: document.getElementById("dieselPrice").value,
+        tankSize: document.getElementById("tankSize").value,
+        runtime: document.getElementById("runtime").value,
+        kva: document.getElementById("kva").value,
+        hours: Array.from(document.querySelectorAll(".hours")).map(i => i.value)
+      };
+      localStorage.setItem("generatorPreset", JSON.stringify(preset));
+      alert("Preset saved!");
+    }
+
+    function loadPreset() {
+      const preset = JSON.parse(localStorage.getItem("generatorPreset"));
+      if (!preset) return alert("No preset found.");
+      document.getElementById("dieselPrice").value = preset.dieselPrice;
+      document.getElementById("tankSize").value = preset.tankSize;
+      document.getElementById("runtime").value = preset.runtime;
+      document.getElementById("kva").value = preset.kva;
+      document.querySelectorAll(".hours").forEach((input, i) => {
+        input.value = preset.hours[i] || 0;
+      });
+      update();
+    }
+
+        function exportCSV() {
+      let csv = "Month,Outage Hours,Diesel Used (L),Cost (AUD)\n";
+      const rows = document.querySelectorAll("#tableBody tr");
+      rows.forEach(row => {
+        const cells = row.querySelectorAll("td");
+        const month = cells[0].textContent;
+        const hours = cells[1].querySelector("input").value;
+        const diesel = cells[2].textContent;
+        const cost = cells[3].textContent;
+        csv += `${month},${hours},${diesel},${cost}\n`;
+      });
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "generator_costs.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Load theme preference on page load
+    window.onload = () => {
+      if (localStorage.getItem("theme") === "dark") {
+        document.body.classList.add("dark");
+      }
+      update();
+    };
+  </script>
+</body>
+</html>
