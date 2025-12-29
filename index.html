@@ -301,7 +301,7 @@
     }
 	
 	function getAvgPrice() {
-  const url = "https://www.fuelwatch.wa.gov.au/fuelwatch/fuelWatchRSS?Product=2&Suburb=Gidgegannup";
+  const url = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://www.fuelwatch.wa.gov.au/fuelwatch/fuelWatchRSS?Product=2&Suburb=Gidgegannup");
 
   fetch(url)
     .then(response => response.text())
@@ -313,15 +313,15 @@
 
       items.forEach(item => {
         const priceText = item.querySelector("price").textContent;
-        const price = parseFloat(priceText);
-        if (!isNaN(price)) prices.push(price);
+        const priceCents = parseFloat(priceText);
+        if (!isNaN(priceCents)) prices.push(priceCents / 100); // Convert to dollars
       });
 
       if (prices.length > 0) {
         const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
         document.getElementById("dieselPrice").value = avg.toFixed(3);
         update();
-        alert(`Average diesel price from ${prices.length} stations: ${avg.toFixed(3)} AUD/L`);
+        alert(`Average diesel price from ${prices.length} stations: $${avg.toFixed(3)} per litre`);
       } else {
         alert("No diesel prices found for Gidgegannup.");
       }
@@ -342,3 +342,4 @@
   </script>
 </body>
 </html>
+
