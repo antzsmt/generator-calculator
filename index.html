@@ -28,6 +28,32 @@
     text-align: center;
     margin: 1rem 0;
   }
+  .summary-row {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 30px;
+	margin: 1rem 0;
+  }
+
+  .summary-item {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 10px;
+	font-weight: bold;
+	}
+
+  .summary-item label {
+	min-width: 160px;
+	text-align: right;
+	}
+
+  .summary-item input {
+	width: 80px;
+	padding: 6px;
+	font-size: 1rem;
+	}
   .controls {
     position: sticky;
     top: 0;
@@ -110,6 +136,34 @@
       max-width: 300px;
     }
   }
+  
+  @media print {
+  /* Hide all input boxes */
+  input[type="number"] {
+    border: none !important;
+    background: transparent !important;
+    color: black !important;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  /* Replace inputs with their values */
+  input[type="number"]::before {
+    content: attr(value);
+    color: black;
+    font-size: 1rem;
+  }
+
+  /* Hide the actual typed text so only the printed value shows */
+  input[type="number"] {
+    color: transparent !important;
+  }
+
+  /* Hide controls bar */
+  .controls {
+    display: none !important;
+  }
+}
 </style>
 </head>
 <body>
@@ -120,23 +174,30 @@
   <button onclick="toggleTheme()">🌓 Toggle Theme</button>
   <button onclick="savePreset()">💾 Save Preset</button>
   <button onclick="loadPreset()">📂 Load Preset</button>
+  <input type="file" id="csvInput" accept=".csv" style="display:none" onchange="importCSV(event)">
+  <button onclick="document.getElementById('csvInput').click()">📥 Import CSV</button>
   <button onclick="exportCSV()">📤 Export CSV</button>
+  <button onclick="printSummary()">🖨️ Print Summary (PDF)</button>
   </div>
 
-  <div class="inputs">
-    <label>Diesel Price (AUD/L)
-      <input type="number" id="dieselPrice" value="1.844" step="0.001" />
-    </label>
-    <label>Tank Size (L)
-      <input type="number" id="tankSize" value="125" />
-    </label>
-    <label>Runtime per Tank (hrs)
-      <input type="number" id="runtime" value="20" />
-    </label>
-    <label>Generator Output (kVA)
-      <input type="number" id="kva" value="18" />
-    </label>
+  <div class="inputs summary-row">
+  <div class="summary-item">
+    <label for="dieselPrice">Diesel Price (AUD/L)</label>
+    <input type="number" id="dieselPrice" value="1.844" step="0.001" />
   </div>
+  <div class="summary-item">
+    <label for="tankSize">Tank Size (L)</label>
+    <input type="number" id="tankSize" value="125" />
+  </div>
+  <div class="summary-item">
+    <label for="runtime">Runtime per Tank (hrs)</label>
+    <input type="number" id="runtime" value="20" />
+  </div>
+  <div class="summary-item">
+    <label for="kva">Generator Output (kVA)</label>
+    <input type="number" id="kva" value="18" />
+  </div>
+</div>
 
   <table>
     <thead>
@@ -279,26 +340,70 @@
     }
 
         function exportCSV() {
-      let csv = "Month,Outage Hours,Diesel Used (L),Cost (AUD)\n";
-      const rows = document.querySelectorAll("#tableBody tr");
-      rows.forEach(row => {
-        const cells = row.querySelectorAll("td");
-        const month = cells[0].textContent;
-        const hours = cells[1].querySelector("input").value;
-        const diesel = cells[2].textContent;
-        const cost = cells[3].textContent;
-        csv += `${month},${hours},${diesel},${cost}\n`;
-      });
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "generator_costs.csv";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+  // Default filename
+  let defaultName = "generator_costs.csv";
+
+  // Ask user if they want to overwrite
+  const overwrite = confirm("Do you want to overwrite the existing CSV file name?");
+
+  let fileName = defaultName;
+
+  if (!overwrite) {
+    // Ask for a new name
+    const newName = prompt("Enter a new file name (without extension):", "generator_costs_updated");
+    if (newName && newName.trim() !== "") {
+      fileName = newName.trim() + ".csv";
     }
+  }
+
+  // Build CSV content
+  let csv = "Month,Outage Hours,Diesel Used (L),Cost (AUD)\n";
+  const rows = document.querySelectorAll("#tableBody tr");
+
+  rows.forEach(row => {
+    const cells = row.querySelectorAll("td");
+    const month = cells[0].textContent;
+    const hours = cells[1].querySelector("input").value;
+    const diesel = cells[2].textContent;
+    const cost = cells[3].textContent;
+    csv += `${month},${hours},${diesel},${cost}\n`;
+  });
+
+  // Create file and trigger download
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+	
+	function importCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const lines = e.target.result.split("\n").map(line => line.trim()).filter(line => line);
+    if (lines.length < 2) return alert("CSV is empty or invalid.");
+
+    const header = lines[0].split(",");
+    const rows = lines.slice(1);
+
+    rows.forEach((line, i) => {
+      const [month, hours, diesel, cost] = line.split(",");
+      const input = document.querySelectorAll(".hours")[i];
+      if (input) input.value = hours;
+    });
+
+    update();
+    alert("CSV imported successfully!");
+  };
+  reader.readAsText(file);
+}
 	
 	function getAvgPrice() {
   const url = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://www.fuelwatch.wa.gov.au/fuelwatch/fuelWatchRSS?Product=2&Suburb=Gidgegannup");
@@ -331,6 +436,40 @@
       alert("Could not fetch diesel prices. Please try again later.");
       });
 	}
+	
+	function printSummary() {
+	// Clone inputs into static text for printing
+	const inputs = document.querySelectorAll("input[type='number']");
+	inputs.forEach(input => {
+		const span = document.createElement("span");
+		span.textContent = input.value;
+		span.className = "print-value";
+		span.style.fontWeight = "bold";
+		span.style.padding = "6px";
+		span.style.display = "inline-block";
+		span.style.minWidth = input.offsetWidth + "px";
+		span.style.textAlign = "center";
+		input.style.display = "none";
+		input.parentNode.appendChild(span);
+	});
+
+	// Hide controls bar
+	const controls = document.querySelector(".controls");
+	controls.style.display = "none";
+
+	// Trigger print
+	setTimeout(() => {
+		window.print();
+
+	// Restore inputs after print
+    inputs.forEach(input => {
+      input.style.display = "";
+      const span = input.parentNode.querySelector(".print-value");
+      if (span) span.remove();
+    });
+    controls.style.display = "flex";
+		}, 100);
+	}
 
     // Load theme preference on page load
     window.onload = () => {
@@ -342,4 +481,3 @@
   </script>
 </body>
 </html>
-
